@@ -1,0 +1,10 @@
+
+[flyway]
+locations = ["filesystem:/app/migrations"]
+
+
+[environments.default]
+locations = ["filesystem:/app/migrations"]
+url = "jdbc:postgresql://localhost:5432/objectdb"
+user = "admin"
+password = "letmein"
