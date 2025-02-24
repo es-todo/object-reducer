@@ -18,6 +18,7 @@
     "express": "^4.21.2",
     "nodemon": "^3.1.9",
     "pg": "^8.13.3",
+    "schemata": "github:es-todo/schemata",
     "typescript": "^5.7.3"
   }
 }

@@ -1,6 +1,9 @@
 import express from "express";
 import body_parser from "body-parser";
-
+import {
+  type object_type,
+  parse_object_type,
+} from "schemata/generated/object_type";
 import pg from "pg";
 
 const port = 3000;
@@ -119,6 +122,26 @@ app.get("/object-apis/wait-t", async (req, res) => {
   await wait_t(t);
   res.status(200).send("ok");
   return;
+});
+
+app.get("/object-apis/get-object", async (req, res) => {
+  const { type, id } = req.query;
+  if (typeof type !== "string" || typeof id !== "string") {
+    res.status(401).send("invalid request");
+    return;
+  }
+  const out = await pool.query(
+    `select object_data as data from object_rev
+       where object_type = $1 and object_id = $2
+       order by event_t desc, event_i desc
+       limit 1`,
+    [type, id]
+  );
+  if (out.rows.length === 0 || out.rows[0].data === null) {
+    res.status(200).json({ found: false });
+  } else {
+    res.status(200).json({ found: true, data: out.rows[0].data });
+  }
 });
 
 app.listen(port, () => {
