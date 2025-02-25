@@ -5,6 +5,7 @@ import {
   parse_object_type,
 } from "schemata/generated/object_type";
 import pg from "pg";
+import { start_processing } from "./event-processor.ts";
 
 const port = 3000;
 const db_user = "admin";
@@ -144,6 +145,8 @@ app.get("/object-apis/get-object", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`events server listening on port ${port}`);
-});
+start_processing(pool, () =>
+  app.listen(port, () => {
+    console.log(`events server listening on port ${port}`);
+  })
+);
