@@ -3,7 +3,10 @@ import pg from "pg";
 
 export class Transaction {
   client: pg.PoolClient;
-  cache: Map<string, Map<string, any>> = new Map();
+  cache: Map<
+    string,
+    Map<string, { event_t: number; event_i: number; value: any }>
+  > = new Map();
   event_t: number | undefined;
   event_i: number | undefined;
 
@@ -35,19 +38,26 @@ export class Transaction {
     const cached = this.cache.get(type)?.get(id);
     if (cached !== undefined) return cached;
     const res = await this.client.query(
-      `select object_data as data from object_rev
+      `select event_t, event_i, object_data as data from object_rev
          where object_type = $1 and object_id = $2 
          order by event_t desc, event_i desc limit 1`,
       [type, id]
     );
-    const value = res.rows.length === 0 ? null : res.rows[0].data;
+    const row: { event_t: string; event_i: string; data: any } =
+      res.rows.length === 0
+        ? { event_t: 0, event_i: 0, data: null }
+        : res.rows[0];
     const c0 =
       this.cache.get(type) ??
       ((m) => {
         this.cache.set(type, m);
         return m;
-      })(new Map<string, any>());
-    c0.set(id, value);
-    return value;
+      })(new Map<string, { event_t: number; event_i: number; value: any }>());
+    c0.set(id, {
+      event_t: parseInt(row.event_t),
+      event_i: parseInt(row.event_i),
+      value: row.data,
+    });
+    return row.data;
   }
 }
