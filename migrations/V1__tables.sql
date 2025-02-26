@@ -1,6 +1,5 @@
 create table clock (
-  event_t bigint not null primary key,
-  event_date timestamp without time zone not null
+  event_t bigint not null primary key
 );
 
 create table event (

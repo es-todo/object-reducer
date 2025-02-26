@@ -15,7 +15,7 @@ create user admin password 'letmein';
 create database objectdb with owner = admin;
 EOF
 
-flyway migrate
+flyway migrate || exit -1
 
 echo "Postgresql started."
 

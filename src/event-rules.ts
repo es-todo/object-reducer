@@ -6,6 +6,7 @@ import { type object_type } from "schemata/generated/object_type";
 import { parse_object_type } from "schemata/generated/object_type";
 import { sleep } from "./sleep.ts";
 import axios from "axios";
+import { Transaction } from "./transaction.ts";
 
 type fetch_func<k> = {
   type: k;
@@ -139,9 +140,25 @@ type outcome =
   | { type: "failed"; reason: string }
   | { type: "success"; changes: Record<string, Record<string, any>> };
 
-async function finalize(out: action): Promise<outcome> {
-  console.log({ out });
-  throw new Error("finalize not implemented");
+async function finalize(action: action, trx: Transaction): Promise<void> {
+  switch (action.type) {
+    case "fetch": {
+      const { type, id, sk, fk } = action.desc;
+      const value = await trx.fetch(type, id);
+      console.log({ type, id, value });
+      if (value === null) {
+        return finalize(fk(), trx);
+      }
+      throw new Error("tbc");
+    }
+    case "seq": {
+      return Promise.all(action.seq.map((x) => finalize(x, trx))).then(
+        () => {}
+      );
+    }
+    default:
+      throw new Error(`action ${action.type} not implemented`);
+  }
   //switch (out.type) {
   //  case "fetch": {
   //    const { type, id, sk, fk } = out.desc;
@@ -168,16 +185,13 @@ export async function process_event(
   event: {
     type: string;
     value: any;
-  }
-): Promise<outcome> {
-  const c = (() => {
-    try {
-      return parse_event_type(event);
-    } catch (error) {
-      return undefined;
-    }
-  })();
-  if (c === undefined) return fail("invalid event");
+  },
+  trx: Transaction
+): Promise<void> {
+  const c = parse_event_type(event);
   const insp = event_rules[c.type];
-  return finalize(insp(({ handler }) => handler(c.value as any)));
+  return finalize(
+    insp(({ handler }) => handler(c.value as any)),
+    trx
+  );
 }

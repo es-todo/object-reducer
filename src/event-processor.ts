@@ -3,6 +3,8 @@ import axios from "axios";
 import { sleep } from "./sleep.ts";
 import assert from "node:assert";
 import { parse_event_type } from "schemata/generated/event_type";
+import { Transaction } from "./transaction.ts";
+import { process_event } from "./event-rules.ts";
 
 type pool = pg.Pool;
 
@@ -53,9 +55,20 @@ async function get_self_event_t(pool: pool): Promise<number> {
   }
 }
 
-async function process_events(event_t: number, events: any[]) {
+async function process_events(event_t: number, events: any[], pool: pool) {
   const parsed_events = events.map(parse_event_type);
   console.log({ parsed_events });
+  const client = await pool.connect();
+  await client.query("begin transaction isolation level serializable");
+  const trx = new Transaction(client);
+  await trx.set_clock(event_t);
+  await Promise.all(
+    events.map(async (event, event_i) => {
+      await trx.set_event(event_i, event);
+      await process_event(event_t, event_i, event, trx);
+    })
+  );
+  client.release(true);
   throw new Error("not yet");
 }
 
@@ -65,13 +78,13 @@ export async function start_processing(pool: pool, when_done: () => void) {
   assert(event_t <= initial_event_t);
   while (event_t < initial_event_t) {
     const events = await fetch_events(event_t + 1);
-    await process_events(event_t + 1, events);
+    await process_events(event_t + 1, events, pool);
     event_t += 1;
   }
   when_done();
   while (true) {
     const events = await fetch_events(event_t + 1);
-    await process_events(event_t + 1, events);
+    await process_events(event_t + 1, events, pool);
     event_t += 1;
   }
 }
