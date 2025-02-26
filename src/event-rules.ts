@@ -16,9 +16,7 @@ type fetch_func<k> = {
 };
 
 type fetch_desc = fetch_func<object_type["type"]>;
-type object_val<T> = object_type extends { type: T; value: infer v }
-  ? v
-  : never;
+type object_val<T> = object_type extends { type: T; data: infer v } ? v : never;
 
 function fetch<T extends object_type["type"]>(
   type: T,
@@ -43,7 +41,7 @@ type action =
       type: "change";
       object_type: object_type["type"];
       object_id: string;
-      object_value: any;
+      object_data: any;
     }
   | { type: "seq"; seq: action[] }
   | { type: "failed"; reason: string };
@@ -51,13 +49,13 @@ type action =
 function create<T extends object_type["type"]>(
   type: T,
   id: string,
-  value: (object_type & { type: T })["value"]
+  data: (object_type & { type: T })["data"]
 ): action {
   return {
     type: "change",
     object_type: type,
     object_id: id,
-    object_value: value,
+    object_data: data,
   };
 }
 
@@ -66,7 +64,7 @@ function del<T extends object_type["type"]>(type: T, id: string): action {
     type: "change",
     object_type: type,
     object_id: id,
-    object_value: undefined,
+    object_data: null,
   };
 }
 
@@ -79,7 +77,7 @@ function fail(reason: string) {
 }
 
 type dispatch<k extends event_type["type"]> = (
-  args: (event_type & { type: k })["value"]
+  args: (event_type & { type: k })["data"]
 ) => action;
 
 type event_rules = {
@@ -121,25 +119,6 @@ const event_rules: event_rules = {
   }),
 };
 
-type fetch_result = { found: false } | { found: true; data: any };
-async function fetch_object(type: string, id: string): Promise<fetch_result> {
-  while (true) {
-    try {
-      const result = await axios.get(
-        `http://object-reducer:3000/object-apis/get-object?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`
-      );
-      return result.data as any;
-    } catch (error: any) {
-      console.error(error);
-      await sleep(1000);
-    }
-  }
-}
-
-type outcome =
-  | { type: "failed"; reason: string }
-  | { type: "success"; changes: Record<string, Record<string, any>> };
-
 async function finalize(action: action, trx: Transaction): Promise<void> {
   switch (action.type) {
     case "fetch": {
@@ -155,6 +134,9 @@ async function finalize(action: action, trx: Transaction): Promise<void> {
       return Promise.all(action.seq.map((x) => finalize(x, trx))).then(
         () => {}
       );
+    }
+    case "change": {
+      return trx.change(action);
     }
     default:
       throw new Error(`action ${action.type} not implemented`);
@@ -184,14 +166,14 @@ export async function process_event(
   event_i: number,
   event: {
     type: string;
-    value: any;
+    data: any;
   },
   trx: Transaction
 ): Promise<void> {
   const c = parse_event_type(event);
   const insp = event_rules[c.type];
   return finalize(
-    insp(({ handler }) => handler(c.value as any)),
+    insp(({ handler }) => handler(c.data as any)),
     trx
   );
 }

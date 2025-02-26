@@ -56,6 +56,7 @@ async function get_self_event_t(pool: pool): Promise<number> {
 }
 
 async function process_events(event_t: number, events: any[], pool: pool) {
+  console.log({ events });
   const parsed_events = events.map(parse_event_type);
   console.log({ parsed_events });
   const client = await pool.connect();
@@ -63,13 +64,14 @@ async function process_events(event_t: number, events: any[], pool: pool) {
   const trx = new Transaction(client);
   await trx.set_clock(event_t);
   await Promise.all(
-    events.map(async (event, event_i) => {
-      await trx.set_event(event_i, event);
+    parsed_events.map(async (event, event_i) => {
+      await trx.set_event(event_i, event.type, event.data);
       await process_event(event_t, event_i, event, trx);
     })
   );
+  await client.query("select pg_notify($1,$2)", ["event_stream", event_t]);
+  await client.query("commit");
   client.release(true);
-  throw new Error("not yet");
 }
 
 export async function start_processing(pool: pool, when_done: () => void) {
@@ -78,6 +80,7 @@ export async function start_processing(pool: pool, when_done: () => void) {
   assert(event_t <= initial_event_t);
   while (event_t < initial_event_t) {
     const events = await fetch_events(event_t + 1);
+    console.log({ events });
     await process_events(event_t + 1, events, pool);
     event_t += 1;
   }
