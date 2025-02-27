@@ -79,15 +79,18 @@ export async function start_processing(pool: pool, when_done: () => void) {
   const initial_event_t = await fetch_event_t();
   assert(event_t <= initial_event_t);
   while (event_t < initial_event_t) {
-    const events = await fetch_events(event_t + 1);
-    console.log({ events });
-    await process_events(event_t + 1, events, pool);
     event_t += 1;
+    console.log({ waiting_for_event: event_t });
+    const events = await fetch_events(event_t);
+    console.log(JSON.stringify({ event_t, events }, undefined, 2));
+    await process_events(event_t, events, pool);
   }
   when_done();
   while (true) {
-    const events = await fetch_events(event_t + 1);
-    await process_events(event_t + 1, events, pool);
     event_t += 1;
+    console.log({ waiting_for_event: event_t });
+    const events = await fetch_events(event_t);
+    console.log(JSON.stringify({ event_t, events }, undefined, 2));
+    await process_events(event_t, events, pool);
   }
 }
