@@ -117,6 +117,9 @@ const event_rules: event_rules = {
   user_email_changed: Event({
     handler: () => fail("not implemented"),
   }),
+  ping: Event({
+    handler: () => seq([]),
+  }),
 };
 
 async function finalize(action: action, trx: Transaction): Promise<void> {
