@@ -16,7 +16,7 @@ type fetch_func<k> = {
 };
 
 type fetch_desc = fetch_func<object_type["type"]>;
-type object_val<T> = object_type extends { type: T; data: infer v } ? v : never;
+type object_val<T> = (object_type & { type: T })["data"];
 
 function fetch<T extends object_type["type"]>(
   type: T,
@@ -47,6 +47,19 @@ type action =
   | { type: "failed"; reason: string };
 
 function create<T extends object_type["type"]>(
+  type: T,
+  id: string,
+  data: (object_type & { type: T })["data"]
+): action {
+  return {
+    type: "change",
+    object_type: type,
+    object_id: id,
+    object_data: data,
+  };
+}
+
+function update<T extends object_type["type"]>(
   type: T,
   id: string,
   data: (object_type & { type: T })["data"]
@@ -118,7 +131,13 @@ const event_rules: event_rules = {
     handler: () => fail("not implemented"),
   }),
   ping: Event({
-    handler: () => seq([]),
+    handler: () =>
+      fetch(
+        "counter",
+        "ping",
+        ({ count }) => update("counter", "ping", { count: count + 1 }),
+        () => create("counter", "ping", { count: 1 })
+      ),
   }),
 };
 
@@ -130,8 +149,9 @@ async function finalize(action: action, trx: Transaction): Promise<void> {
       console.log({ type, id, value });
       if (value === null) {
         return finalize(fk(), trx);
+      } else {
+        return finalize(sk(value), trx);
       }
-      throw new Error("tbc");
     }
     case "seq": {
       return Promise.all(action.seq.map((x) => finalize(x, trx))).then(
