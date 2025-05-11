@@ -3,9 +3,6 @@ import {
   type event_type,
 } from "schemata/generated/event_type";
 import { type object_type } from "schemata/generated/object_type";
-import { parse_object_type } from "schemata/generated/object_type";
-import { sleep } from "./sleep.ts";
-import axios from "axios";
 import { Transaction } from "./transaction.ts";
 
 type fetch_func<k> = {
@@ -138,6 +135,24 @@ const event_rules: event_rules = {
         "ping",
         ({ count }) => update("counter", "ping", { count: count + 1 }),
         () => create("counter", "ping", { count: 1 })
+      ),
+  }),
+  board_created: Event({
+    handler: ({ user_id, board_id, board_name }) =>
+      seq([
+        create("board", board_id, { name: board_name, user_id }),
+        fetch(
+          "user_boards",
+          user_id,
+          ({list}) => update("user_boards", user_id, {list:[...list, board_id]}),
+          () => update("user_boards", user_id, {list: [board_id]})
+        ),
+      ]),
+  }),
+  board_renamed: Event({
+    handler: ({ board_id, board_name }) =>
+      fetch("board", board_id, (data) =>
+        update("board", board_id, { ...data, name: board_name })
       ),
   }),
 };
