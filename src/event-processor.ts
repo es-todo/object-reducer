@@ -75,8 +75,10 @@ async function process_events(event_t: number, events: any[], pool: pool) {
 }
 
 export async function start_processing(pool: pool, when_done: () => void) {
+  console.log("starting ...");
   let event_t = await get_self_event_t(pool);
   const initial_event_t = await fetch_event_t();
+  console.log({ event_t, initial_event_t });
   assert(event_t <= initial_event_t);
   while (event_t < initial_event_t) {
     event_t += 1;

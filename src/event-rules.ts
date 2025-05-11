@@ -109,7 +109,7 @@ function Event<T extends event_type["type"]>(args: { handler: dispatch<T> }) {
 
 const event_rules: event_rules = {
   user_registered: Event({
-    handler: ({ user_id, email, salted_hash }) =>
+    handler: ({ user_id, email, password }) =>
       fetch(
         "user",
         user_id,
@@ -121,8 +121,9 @@ const event_rules: event_rules = {
             () => fail("email already taken"),
             () =>
               seq([
-                create("user", user_id, { email, salted_hash }),
+                create("user", user_id, { email }),
                 create("email", email, { user_id }),
+                create("credentials", user_id, { password }),
               ])
           )
       ),
