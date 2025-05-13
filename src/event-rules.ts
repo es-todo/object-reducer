@@ -104,6 +104,23 @@ function Event<T extends event_type["type"]>(args: { handler: dispatch<T> }) {
   return <R>(inspect: inspector<T, R>) => inspect(args);
 }
 
+function link_user(user_id: string) {
+  return fetch(
+    "users_ll",
+    "root",
+    ({ next }) =>
+      seq([
+        create("users_ll", user_id, { next }),
+        update("users_ll", "root", { next: user_id }),
+      ]),
+    () =>
+      seq([
+        create("users_ll", user_id, { next: null }),
+        create("users_ll", "root", { next: user_id }),
+      ])
+  );
+}
+
 const event_rules: event_rules = {
   user_registered: Event({
     handler: ({ user_id, email, password }) =>
@@ -121,6 +138,7 @@ const event_rules: event_rules = {
                 create("user", user_id, { email }),
                 create("email", email, { user_id }),
                 create("credentials", user_id, { password }),
+                link_user(user_id),
               ])
           )
       ),
@@ -144,8 +162,9 @@ const event_rules: event_rules = {
         fetch(
           "user_boards",
           user_id,
-          ({list}) => update("user_boards", user_id, {list:[...list, board_id]}),
-          () => update("user_boards", user_id, {list: [board_id]})
+          ({ list }) =>
+            update("user_boards", user_id, { list: [...list, board_id] }),
+          () => update("user_boards", user_id, { list: [board_id] })
         ),
       ]),
   }),
