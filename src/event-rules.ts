@@ -135,12 +135,18 @@ const event_rules: event_rules = {
             () => fail("email already taken"),
             () =>
               seq([
-                create("user", user_id, { email }),
+                create("user", user_id, { email, name: undefined }),
                 create("email", email, { user_id }),
                 create("credentials", user_id, { password }),
                 link_user(user_id),
               ])
           )
+      ),
+  }),
+  user_name_changed: Event({
+    handler: ({ user_id, new_name }) =>
+      fetch("user", user_id, (user) =>
+        update("user", user_id, { ...user, name: new_name })
       ),
   }),
   user_email_changed: Event({
@@ -199,24 +205,6 @@ async function finalize(action: action, trx: Transaction): Promise<void> {
     default:
       throw new Error(`action ${action.type} not implemented`);
   }
-  //switch (out.type) {
-  //  case "fetch": {
-  //    const { type, id, sk, fk } = out.desc;
-  //    const res = await fetch_object(type, id);
-  //    if (res.found) {
-  //      const o = parse_object_type({ type, value: res.data });
-  //      return finalize(sk(o.value));
-  //    } else {
-  //      return finalize(fk());
-  //    }
-  //  }
-  //  case "succeeded":
-  //  case "failed":
-  //    return out;
-  //  default:
-  //    const invalid: never = out;
-  //    throw invalid;
-  //}
 }
 
 export async function process_event(
