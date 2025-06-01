@@ -123,32 +123,33 @@ function link_user(user_id: string) {
 
 const event_rules: event_rules = {
   user_registered: Event({
-    handler: ({ user_id, email, password }) =>
+    handler: ({ user_id, username, realname, email, password }) =>
       fetch(
         "user",
         user_id,
         () => fail("user_id already taken"),
         () =>
-          fetch(
-            "email",
-            email,
-            () => fail("email already taken"),
-            () =>
-              seq([
-                create("user", user_id, { email, name: undefined }),
-                create("email", email, { user_id }),
-                create("credentials", user_id, { password }),
-                link_user(user_id),
-              ])
-          )
+          seq([
+            create("user", user_id, { email, username, realname }),
+            create("username", username, { user_id }),
+            create("email", email, { user_id }),
+            create("credentials", user_id, { password }),
+            link_user(user_id),
+          ])
       ),
   }),
-  user_name_changed: Event({
-    handler: ({ user_id, new_name }) =>
-      fetch("user", user_id, (user) =>
-        update("user", user_id, { ...user, name: new_name })
-      ),
+  user_realname_changed: Event({
+    handler: () => fail("not implemented"),
   }),
+  user_username_changed: Event({
+    handler: () => fail("not implemented"),
+  }),
+  //user_name_changed: Event({
+  //  handler: ({ user_id, new_name }) =>
+  //    fetch("user", user_id, (user) =>
+  //      update("user", user_id, { ...user, name: new_name })
+  //    ),
+  //}),
   user_email_changed: Event({
     handler: () => fail("not implemented"),
   }),
