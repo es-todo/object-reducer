@@ -63,12 +63,13 @@ async function process_events(event_t: number, events: any[], pool: pool) {
   await client.query("begin transaction isolation level serializable");
   const trx = new Transaction(client);
   await trx.set_clock(event_t);
-  await Promise.all(
-    parsed_events.map(async (event, event_i) => {
-      await trx.set_event(event_i, event.type, event.data);
-      await process_event(event_t, event_i, event, trx);
-    })
-  );
+  for (const { event_i, type, data } of parsed_events.map((x, event_i) => ({
+    ...x,
+    event_i,
+  }))) {
+    await trx.set_event(event_i, type, data);
+    await process_event(event_t, event_i, { type, data }, trx);
+  }
   await client.query("select pg_notify($1,$2)", ["event_stream", event_t]);
   await client.query("commit");
   client.release(true);
