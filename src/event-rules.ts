@@ -4,6 +4,7 @@ import {
 } from "schemata/generated/event_type";
 import { type object_type } from "schemata/generated/object_type";
 import { Transaction } from "./transaction.ts";
+import { difference } from "./set-functions.ts";
 
 type fetch_func<k> = {
   type: k;
@@ -138,6 +139,51 @@ const event_rules: event_rules = {
           ])
       ),
   }),
+  email_confirmation_code_generated: Event({
+    handler: () => fail("not implemented"),
+  }),
+  password_reset_code_generated: Event({
+    handler: () => fail("not implemented"),
+  }),
+  user_roles_changed: Event({
+    handler: ({ user_id, roles: new_roles }) => {
+      function add_user(role: string): action {
+        return fetch(
+          "role_users",
+          role,
+          ({ user_ids }) =>
+            update("role_users", role, { user_ids: [...user_ids, user_id] }),
+          () => create("role_users", role, { user_ids: [user_id] })
+        );
+      }
+      function remove_user(role: string): action {
+        return fetch("role_users", role, ({ user_ids }) =>
+          update("role_users", role, {
+            user_ids: user_ids.filter((x) => x !== user_id),
+          })
+        );
+      }
+      function update_roles(old_roles: string[]): action {
+        const removed_roles = difference(old_roles, new_roles);
+        const added_roles = difference(new_roles, old_roles);
+        return seq([
+          ...removed_roles.map(remove_user),
+          ...added_roles.map(add_user),
+          update("user_roles", user_id, { roles: new_roles }),
+        ]);
+      }
+      return fetch(
+        "user_roles",
+        user_id,
+        ({ roles }) => update_roles(roles),
+        () => update_roles([])
+      );
+    },
+  }),
+  email_message_enqueued: Event({ handler: () => fail("not implemented") }),
+  email_message_dequeued: Event({ handler: () => fail("not implemented") }),
+  //email_confirmation_code_generated: Event({handler: () => fail("not implemented")}),
+  //email_confirmation_code_generated: Event({handler: () => fail("not implemented")}),
   user_realname_changed: Event({
     handler: () => fail("not implemented"),
   }),
@@ -203,8 +249,12 @@ async function finalize(action: action, trx: Transaction): Promise<void> {
     case "change": {
       return trx.change(action);
     }
+    case "failed": {
+      throw new Error(`action failed: ${action.reason}`);
+    }
     default:
-      throw new Error(`action ${action.type} not implemented`);
+      const invalid: never = action;
+      throw invalid;
   }
 }
 

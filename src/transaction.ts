@@ -25,6 +25,7 @@ export class Transaction {
 
   public async set_event(event_i: number, event_type: string, event_data: any) {
     assert(this.event_t !== undefined);
+    console.log({ event_i, mine: this.event_i });
     assert(
       this.event_i === undefined ? event_i === 0 : event_i === this.event_i + 1
     );
