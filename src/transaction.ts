@@ -39,7 +39,7 @@ export class Transaction {
 
   public async fetch(type: string, id: string) {
     const cached = this.cache.get(type)?.get(id);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) return cached.value;
     const res = await this.client.query(
       `select event_t, event_i, object_data as data from object_rev
          where object_type = $1 and object_id = $2
@@ -69,6 +69,7 @@ export class Transaction {
     object_id: string;
     object_data: any;
   }) {
+    console.log({ changing: x });
     const id = x.object_id;
     const { type, data } = parse_object_type({
       type: x.object_type,
@@ -80,7 +81,11 @@ export class Transaction {
     assert(event_t !== undefined);
     assert(event_i !== undefined);
     if (cached && cached.event_t === event_t && cached.event_i === event_i) {
-      throw new Error("second change");
+      await this.client.query(
+        `update object_rev set object_data = $1
+           where event_t = $2 and event_i = $3 and object_type = $4 and object_id = $5`,
+        [data, event_t, event_i, type, id]
+      );
     } else {
       await this.client.query(
         `insert into object_rev

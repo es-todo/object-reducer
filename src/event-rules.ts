@@ -28,7 +28,7 @@ function fetch<T extends object_type["type"]>(
       type,
       id,
       sk: (v) => sk(v as any),
-      fk: fk ?? (() => ({ type: "failed", reason: "not found" })),
+      fk: fk ?? (() => ({ type: "failed", reason: `${type}:${id} not found` })),
     },
   };
 }
@@ -122,6 +122,30 @@ function link_user(user_id: string) {
   );
 }
 
+function enqueue_seq(message_id: string) {
+  function do_link(prev: string) {
+    return seq([
+      create("email_message_queue_entry", message_id, { prev, next: "*" }),
+      fetch("email_message_queue_entry", prev, (data) =>
+        update("email_message_queue_entry", prev, { ...data, next: message_id })
+      ),
+      fetch("email_message_queue_entry", "*", (data) =>
+        update("email_message_queue_entry", "*", { ...data, prev: message_id })
+      ),
+    ]);
+  }
+  return fetch(
+    "email_message_queue_entry",
+    "*",
+    ({ prev }) => do_link(prev),
+    () =>
+      seq([
+        create("email_message_queue_entry", "*", { prev: "*", next: "*" }),
+        do_link("*"),
+      ])
+  );
+}
+
 const event_rules: event_rules = {
   user_registered: Event({
     handler: ({ user_id, username, realname, email, password }) =>
@@ -133,13 +157,21 @@ const event_rules: event_rules = {
           seq([
             create("user", user_id, { email, username, realname }),
             create("username", username, { user_id }),
-            create("email", email, { user_id }),
+            create("email", email, { user_id, confirmed: false }),
             create("credentials", user_id, { password }),
             link_user(user_id),
           ])
       ),
   }),
   email_confirmation_code_generated: Event({
+    handler: ({ user_id, email, code }) =>
+      create("email_confirmation_code", code, {
+        user_id,
+        email,
+        received: false,
+      }),
+  }),
+  email_confirmation_code_received: Event({
     handler: () => fail("not implemented"),
   }),
   password_reset_code_generated: Event({
@@ -180,10 +212,19 @@ const event_rules: event_rules = {
       );
     },
   }),
-  email_message_enqueued: Event({ handler: () => fail("not implemented") }),
+  email_message_enqueued: Event({
+    handler: ({ message_id, user_id, email, content }) =>
+      seq([
+        create("email_message", message_id, {
+          user_id,
+          email,
+          content,
+          status: "queued",
+        }),
+        enqueue_seq(message_id),
+      ]),
+  }),
   email_message_dequeued: Event({ handler: () => fail("not implemented") }),
-  //email_confirmation_code_generated: Event({handler: () => fail("not implemented")}),
-  //email_confirmation_code_generated: Event({handler: () => fail("not implemented")}),
   user_realname_changed: Event({
     handler: () => fail("not implemented"),
   }),
@@ -229,28 +270,33 @@ const event_rules: event_rules = {
   }),
 };
 
-async function finalize(action: action, trx: Transaction): Promise<void> {
+async function finalize(
+  event_type: string,
+  action: action,
+  trx: Transaction
+): Promise<void> {
   switch (action.type) {
     case "fetch": {
       const { type, id, sk, fk } = action.desc;
       const value = await trx.fetch(type, id);
       console.log({ type, id, value });
       if (value === null) {
-        return finalize(fk(), trx);
+        return finalize(event_type, fk(), trx);
       } else {
-        return finalize(sk(value), trx);
+        return finalize(event_type, sk(value), trx);
       }
     }
     case "seq": {
-      return Promise.all(action.seq.map((x) => finalize(x, trx))).then(
-        () => {}
-      );
+      for (const x of action.seq) {
+        await finalize(event_type, x, trx);
+      }
+      return;
     }
     case "change": {
       return trx.change(action);
     }
     case "failed": {
-      throw new Error(`action failed: ${action.reason}`);
+      throw new Error(`${event_type} failed: ${action.reason}`);
     }
     default:
       const invalid: never = action;
@@ -270,6 +316,7 @@ export async function process_event(
   const c = parse_event_type(event);
   const insp = event_rules[c.type];
   return finalize(
+    event.type,
     insp(({ handler }) => handler(c.data as any)),
     trx
   );
