@@ -71,10 +71,13 @@ export class Transaction {
   }) {
     console.log({ changing: x });
     const id = x.object_id;
-    const { type, data } = parse_object_type({
-      type: x.object_type,
-      data: x.object_data,
-    });
+    const { type, data } =
+      x.object_data === null
+        ? { type: x.object_type, data: null }
+        : parse_object_type({
+            type: x.object_type,
+            data: x.object_data,
+          });
     const cached = this.cache.get(type)?.get(id);
     const event_t = this.event_t;
     const event_i = this.event_i;

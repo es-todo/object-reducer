@@ -145,6 +145,19 @@ function enqueue_seq(message_id: string) {
       ])
   );
 }
+function dequeue_seq(message_id: string) {
+  return fetch("email_message_queue_entry", message_id, ({ prev, next }) =>
+    seq([
+      fetch("email_message_queue_entry", prev, (data) =>
+        update("email_message_queue_entry", prev, { ...data, next })
+      ),
+      fetch("email_message_queue_entry", next, (data) =>
+        update("email_message_queue_entry", next, { ...data, prev })
+      ),
+      del("email_message_queue_entry", message_id),
+    ])
+  );
+}
 
 const event_rules: event_rules = {
   user_registered: Event({
@@ -219,12 +232,25 @@ const event_rules: event_rules = {
           user_id,
           email,
           content,
-          status: "queued",
+          status: { type: "queued" },
         }),
         enqueue_seq(message_id),
       ]),
   }),
-  email_message_dequeued: Event({ handler: () => fail("not implemented") }),
+  email_message_dequeued: Event({
+    handler: ({ message_id, status }) =>
+      seq([
+        fetch("email_message", message_id, (data) =>
+          update("email_message", message_id, {
+            ...data,
+            status: status.success
+              ? { type: "sent" }
+              : { type: "failed", reason: status.reason },
+          })
+        ),
+        dequeue_seq(message_id),
+      ]),
+  }),
   user_realname_changed: Event({
     handler: () => fail("not implemented"),
   }),
