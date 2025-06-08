@@ -260,17 +260,14 @@ const event_rules: event_rules = {
       ]),
   }),
   user_realname_changed: Event({
-    handler: () => fail("not implemented"),
+    handler: ({ user_id, new_realname }) =>
+      fetch("user", user_id, (user) =>
+        update("user", user_id, { ...user, realname: new_realname })
+      ),
   }),
   user_username_changed: Event({
     handler: () => fail("not implemented"),
   }),
-  //user_name_changed: Event({
-  //  handler: ({ user_id, new_name }) =>
-  //    fetch("user", user_id, (user) =>
-  //      update("user", user_id, { ...user, name: new_name })
-  //    ),
-  //}),
   user_email_changed: Event({
     handler: () => fail("not implemented"),
   }),
