@@ -185,7 +185,15 @@ const event_rules: event_rules = {
       }),
   }),
   email_confirmation_code_received: Event({
-    handler: () => fail("not implemented"),
+    handler: ({ code }) =>
+      fetch("email_confirmation_code", code, (conf) =>
+        seq([
+          fetch("email", conf.email, (email_data) =>
+            update("email", conf.email, { ...email_data, confirmed: true })
+          ),
+          update("email_confirmation_code", code, { ...conf, received: true }),
+        ])
+      ),
   }),
   password_reset_code_generated: Event({
     handler: () => fail("not implemented"),
