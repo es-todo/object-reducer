@@ -170,6 +170,7 @@ const event_rules: event_rules = {
           seq([
             create("user", user_id, { email, username, realname }),
             create("username", username, { user_id }),
+            update("username_redirect", username, { user_id }),
             create("email", email, { user_id, confirmed: false }),
             create("credentials", user_id, { password }),
             link_user(user_id),
@@ -266,7 +267,15 @@ const event_rules: event_rules = {
       ),
   }),
   user_username_changed: Event({
-    handler: () => fail("not implemented"),
+    handler: ({ user_id, new_username }) =>
+      fetch("user", user_id, ({ username: old_username, ...data }) =>
+        seq([
+          del("username", old_username),
+          create("username", new_username, { user_id }),
+          update("username_redirect", new_username, { user_id }),
+          update("user", user_id, { ...data, username: new_username }),
+        ])
+      ),
   }),
   user_email_changed: Event({
     handler: () => fail("not implemented"),
