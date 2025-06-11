@@ -197,7 +197,18 @@ const event_rules: event_rules = {
       ),
   }),
   password_reset_code_generated: Event({
-    handler: () => fail("not implemented"),
+    handler: ({ user_id, code }) =>
+      create("password_reset_code", code, { user_id, used: false }),
+  }),
+  password_reset_code_used: Event({
+    handler: ({ code }) =>
+      fetch("password_reset_code", code, ({ user_id }) =>
+        update("password_reset_code", code, { user_id, used: true })
+      ),
+  }),
+  user_password_changed: Event({
+    handler: ({ user_id, password }) =>
+      update("credentials", user_id, { password }),
   }),
   user_roles_changed: Event({
     handler: ({ user_id, roles: new_roles }) => {
@@ -241,6 +252,8 @@ const event_rules: event_rules = {
           user_id,
           email,
           content,
+        }),
+        create("email_message_delivery_status", message_id, {
           status: { type: "queued" },
         }),
         enqueue_seq(message_id),
@@ -249,14 +262,11 @@ const event_rules: event_rules = {
   email_message_dequeued: Event({
     handler: ({ message_id, status }) =>
       seq([
-        fetch("email_message", message_id, (data) =>
-          update("email_message", message_id, {
-            ...data,
-            status: status.success
-              ? { type: "sent" }
-              : { type: "failed", reason: status.reason },
-          })
-        ),
+        update("email_message_delivery_status", message_id, {
+          status: status.success
+            ? { type: "sent" }
+            : { type: "failed", reason: status.reason },
+        }),
         dequeue_seq(message_id),
       ]),
   }),
@@ -345,8 +355,8 @@ async function finalize(
 }
 
 export async function process_event(
-  event_t: number,
-  event_i: number,
+  _event_t: number,
+  _event_i: number,
   event: {
     type: string;
     data: any;
