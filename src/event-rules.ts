@@ -288,7 +288,14 @@ const event_rules: event_rules = {
       ),
   }),
   user_email_changed: Event({
-    handler: () => fail("not implemented"),
+    handler: ({ user_id, new_email }) =>
+      fetch("user", user_id, ({ email: old_email, ...user }) =>
+        seq([
+          create("email", new_email, { user_id, confirmed: false }),
+          update("user", user_id, { ...user, email: new_email }),
+          del("email", old_email),
+        ])
+      ),
   }),
   ping: Event({
     handler: () =>
