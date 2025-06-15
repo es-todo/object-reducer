@@ -159,6 +159,38 @@ function dequeue_seq(message_id: string) {
   );
 }
 
+function feature_user(user_id: string, list_id: string) {
+  return fetch(
+    "users_list",
+    list_id,
+    ({ user_ids }) =>
+      update("users_list", list_id, {
+        user_ids: [
+          user_id,
+          ...user_ids.filter((x) => x !== user_id).slice(100),
+        ],
+        next: undefined,
+      }),
+    () =>
+      create("users_list", list_id, { user_ids: [user_id], next: undefined })
+  );
+}
+
+function unfeature_user(user_id: string, list_id: string) {
+  return fetch(
+    "users_list",
+    list_id,
+    ({ user_ids }) =>
+      user_ids.includes(user_id)
+        ? update("users_list", list_id, {
+            user_ids: user_ids.filter((x) => x !== user_id),
+            next: undefined,
+          })
+        : seq([]),
+    () => seq([])
+  );
+}
+
 const event_rules: event_rules = {
   user_registered: Event({
     handler: ({ user_id, username, realname, email, password }) =>
@@ -179,6 +211,7 @@ const event_rules: event_rules = {
             create("email", email, { user_id, confirmed: false }),
             create("credentials", user_id, { password }),
             link_user(user_id),
+            feature_user(user_id, "recent"),
           ])
       ),
   }),
@@ -305,7 +338,15 @@ const event_rules: event_rules = {
   user_profile_photo_updated: Event({
     handler: ({ user_id, photo }) =>
       fetch("user", user_id, (data) =>
-        update("user", user_id, { ...data, profile_photo: photo ?? undefined })
+        seq([
+          update("user", user_id, {
+            ...data,
+            profile_photo: photo ?? undefined,
+          }),
+          photo
+            ? feature_user(user_id, "featured")
+            : unfeature_user(user_id, "featured"),
+        ])
       ),
   }),
   ping: Event({
