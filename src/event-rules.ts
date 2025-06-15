@@ -168,7 +168,12 @@ const event_rules: event_rules = {
         () => fail("user_id already taken"),
         () =>
           seq([
-            create("user", user_id, { email, username, realname }),
+            create("user", user_id, {
+              email,
+              username,
+              realname,
+              profile_photo: undefined,
+            }),
             create("username", username, { user_id }),
             update("username_redirect", username, { user_id }),
             create("email", email, { user_id, confirmed: false }),
@@ -295,6 +300,12 @@ const event_rules: event_rules = {
           update("user", user_id, { ...user, email: new_email }),
           del("email", old_email),
         ])
+      ),
+  }),
+  user_profile_photo_updated: Event({
+    handler: ({ user_id, photo }) =>
+      fetch("user", user_id, (data) =>
+        update("user", user_id, { ...data, profile_photo: photo ?? undefined })
       ),
   }),
   ping: Event({
