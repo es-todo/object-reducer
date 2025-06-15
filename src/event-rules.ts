@@ -167,7 +167,7 @@ function feature_user(user_id: string, list_id: string) {
       update("users_list", list_id, {
         user_ids: [
           user_id,
-          ...user_ids.filter((x) => x !== user_id).slice(100),
+          ...user_ids.filter((x) => x !== user_id).slice(0, 100),
         ],
         next: undefined,
       }),
